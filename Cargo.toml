@@ -2,9 +2,12 @@
 name = "auto-allocator"
 version = "0.1.0"
 edition = "2021"
+authors = ["Yeauty <YeautyYE@gmail.com>"]
 description = "Zero-configuration automatic memory allocator selection based on runtime hardware analysis and performance research"
 license = "MIT OR Apache-2.0 OR MPL-2.0"
-repository = "https://github.com/yeauty/auto-allocator"
+homepage = "https://github.com/YeautyYE/auto-allocator"
+documentation = "https://docs.rs/auto-allocator"
+repository = "https://github.com/YeautyYE/auto-allocator"
 keywords = ["allocator", "memory", "performance", "automatic", "mimalloc"]
 categories = ["memory-management", "development-tools"]
 
