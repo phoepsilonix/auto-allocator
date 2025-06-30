@@ -1,0 +1,23 @@
+[package]
+name = "embedded_system"
+version = "0.1.0"
+edition = "2021"
+description = "Embedded system example demonstrating auto-allocator with embedded-alloc"
+
+[dependencies]
+auto-allocator = { path = "../.." }
+
+[[bin]]
+name = "embedded_system"
+path = "src/main.rs"
+
+[profile.dev]
+opt-level = 1
+debug = true
+lto = false
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = true
+codegen-units = 1

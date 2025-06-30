@@ -1,0 +1,12 @@
+[target.thumbv7em-none-eabi]
+# Use probe-run as the runner for embedded targets
+# This allows us to run the embedded binary in a simulator
+runner = "probe-run --chip STM32F411CEUx"
+
+# [build]
+# Default target only used for specific embedded builds
+# target = "thumbv7em-none-eabi"
+
+[env]
+# Tell Cargo to build in embedded mode by default
+DEFMT_LOG = "info"
