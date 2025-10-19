@@ -24,7 +24,8 @@ once_cell = "1.19"
 # High-performance allocator for desktop platforms where it provides significant benefits
 # Automatically excluded on platforms with superior native allocators (Android Scudo, iOS libmalloc, BSD jemalloc)
 [target.'cfg(any(target_os = "windows", target_os = "macos", all(target_os = "linux", not(target_arch = "wasm32"))))'.dependencies]
-mimalloc = { version = "0.1.47", default-features = false, optional = true }
+# mimalloc = { version = "0.1.47", default-features = false, optional = true }
+mimalloc-rust = { version = "0.2.1", default-features = false, optional = true }
 
 
 # Lightweight allocator for all embedded systems (no_std environments)
@@ -74,8 +75,8 @@ default = ["_mimalloc", "_embedded"]
 secure = ["_mimalloc_secure", "_embedded"]
 
 # Internal implementation features - not intended for direct use
-_mimalloc = ["dep:mimalloc"]
-_mimalloc_secure = ["dep:mimalloc", "mimalloc/secure"]
+_mimalloc = ["dep:mimalloc-rust"]
+_mimalloc_secure = ["dep:mimalloc-rust", "mimalloc-rust/secure"]
 _embedded = ["dep:embedded-alloc"]
 
 [[example]]
