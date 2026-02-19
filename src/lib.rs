@@ -752,7 +752,10 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
                 not(target_os = "none")
             ))]
             5 => {
-                mimalloc_rust::GlobalMiMalloc.alloc(layout)
+                //mimalloc_rust::GlobalMiMalloc.alloc(layout)
+                use mimalloc::MiMalloc;
+                MiMalloc.alloc(layout)
+
             }
 
             // mimalloc - high-performance allocator with compiler compatibility detection
@@ -763,7 +766,9 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
                 not(target_os = "none")
             ))]
             2 => {
-                mimalloc_rust::GlobalMiMalloc.alloc(layout)
+                //mimalloc_rust::GlobalMiMalloc.alloc(layout)
+                use mimalloc::MiMalloc;
+                MiMalloc.alloc(layout)
 
             }
 
@@ -805,7 +810,9 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
                 not(target_os = "none")
             ))]
             5 => {
-                mimalloc_rust::GlobalMiMalloc.dealloc(ptr, layout)
+                //mimalloc_rust::GlobalMiMalloc.dealloc(ptr, layout)
+                use mimalloc::MiMalloc;
+                MiMalloc.dealloc(ptr, layout)
             }
 
             // mimalloc - high-performance allocator with compiler compatibility detection
@@ -816,7 +823,9 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
                 not(target_os = "none")
             ))]
             2 => {
-                mimalloc_rust::GlobalMiMalloc.dealloc(ptr, layout)
+                //mimalloc_rust::GlobalMiMalloc.dealloc(ptr, layout)
+                use mimalloc::MiMalloc;
+                MiMalloc.dealloc(ptr, layout)
             }
 
             #[cfg(all(
