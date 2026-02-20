@@ -73,6 +73,7 @@ default = ["_mimalloc", "_embedded"]
 
 # Enhanced security mode with ~10% performance overhead for heap exploit protection
 secure = ["_mimalloc_secure", "_embedded"]
+_no_info = []
 
 # Internal implementation features - not intended for direct use
 _mimalloc = ["dep:mimalloc"]

@@ -6,7 +6,6 @@ use std::env;
 /// - Checks if mimalloc can compile (GCC version, stdatomic.h availability)
 /// - Stops compilation on incompatible systems with clear error messages
 /// - Provides upgrade guidance for legacy systems
-
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     

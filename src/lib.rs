@@ -874,6 +874,7 @@ fn record_allocator_selection(allocator_name: &str, reason: &str) {
     #[cfg(unix)]
     {
         let stderr_message = format!("[INFO] {}\n", message);
+        #[cfg(not(feature = "_no_info"))]
         unsafe {
             libc::write(
                 2,
@@ -884,6 +885,7 @@ fn record_allocator_selection(allocator_name: &str, reason: &str) {
     }
 
     // Save message, output later through logging framework
+    #[cfg(not(feature = "_no_info"))]
     if let Ok(mut pending) = PENDING_LOG_MESSAGE.lock() {
         *pending = Some(message);
     }
