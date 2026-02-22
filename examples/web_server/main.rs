@@ -67,7 +67,9 @@ fn main() {
 
     match info.allocator_type {
         auto_allocator::AllocatorType::MimallocSecure => {
-            println!("mimalloc-secure automatically selected - security-hardened for server workloads!");
+            println!(
+                "mimalloc-secure automatically selected - security-hardened for server workloads!"
+            );
             println!("Security features enabled with ~10% performance overhead");
         }
         auto_allocator::AllocatorType::Mimalloc => {

@@ -57,13 +57,29 @@ use log::info;
 use once_cell::sync::Lazy;
 
 use core::alloc::{GlobalAlloc, Layout};
-use core::sync::atomic::{AtomicU8, Ordering};
 #[cfg(not(target_os = "none"))]
 use core::sync::atomic::AtomicBool;
+use core::sync::atomic::{AtomicU8, Ordering};
 
 // Import std-specific modules conditionally
 #[cfg(not(target_os = "none"))]
 use std::alloc;
+
+// mimalloc-rust and mimalloc => mimalloc_rust
+#[cfg(all(feature = "_mimalloc_rust", feature = "_mimalloc"))]
+use mimalloc_rust::GlobalMiMalloc as AutoMalloc;
+
+// mimalloc-rust
+#[cfg(all(feature = "_mimalloc_rust", not(feature = "_mimalloc")))]
+use mimalloc_rust::GlobalMiMalloc as AutoMalloc;
+
+// mimalloc
+#[cfg(all(feature = "_mimalloc", not(feature = "_mimalloc_rust")))]
+use mimalloc::MiMalloc as AutoMalloc;
+
+// feturea nothing => mimalloc_rust
+#[cfg(not(any(feature = "_mimalloc_rust", feature = "_mimalloc")))]
+use mimalloc_rust::GlobalMiMalloc as AutoMalloc;
 
 // ========== Type Definitions ==========
 
@@ -105,7 +121,6 @@ use std::alloc;
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AllocatorType {
-
     /// Security-hardened mimalloc allocator
     ///
     /// Microsoft-developed allocator with enhanced security features.
@@ -118,7 +133,6 @@ pub enum AllocatorType {
     /// Microsoft-developed allocator optimized for multi-threaded workloads.
     /// Automatically selected on modern systems with GCC 4.9+ and stdatomic.h.
     Mimalloc,
-
 
     /// Embedded systems allocator
     ///
@@ -304,7 +318,7 @@ pub struct SystemInfo {
 #[cfg(not(target_os = "none"))]
 pub fn format_memory_size(bytes: u64) -> String {
     use std::format;
-    
+
     if bytes == 0 {
         return "0B".to_string();
     }
@@ -380,7 +394,7 @@ pub fn format_memory_size(bytes: u64) -> &'static str {
 // ========== Platform Detection ==========
 
 /// Checks if the target is an embedded platform requiring specialized allocation
-/// 
+///
 /// Uses `target_os = "none"` as the primary indicator of embedded/no_std environments.
 /// This approach covers all current and future embedded targets automatically,
 /// including architectures like RISC-V, ARM, AVR, MSP430, Xtensa, LoongArch, etc.
@@ -391,8 +405,12 @@ const fn is_embedded_target() -> bool {
 /// Checks if mimalloc can be used on this platform
 const fn can_use_mimalloc() -> bool {
     cfg!(all(
-        feature = "_mimalloc",
-        any(target_os = "windows", target_os = "macos", target_os = "linux"),
+        any(feature = "_mimalloc", feature = "_mimalloc_rust", feature = "_mimalloc_asm"),
+        any(
+            target_os = "windows",
+            target_os = "macos",
+            target_os = "linux"
+        ),
         not(target_arch = "wasm32"),
         not(debug_assertions)
     ))
@@ -401,18 +419,20 @@ const fn can_use_mimalloc() -> bool {
 /// Checks if secure mimalloc can be used on this platform
 const fn can_use_mimalloc_secure() -> bool {
     cfg!(all(
-        feature = "_mimalloc_secure",
-        any(target_os = "windows", target_os = "macos", target_os = "linux"),
+        any(feature = "_mimalloc_secure", feature = "_mimalloc_rust_secure"),
+        any(
+            target_os = "windows",
+            target_os = "macos",
+            target_os = "linux"
+        ),
         not(target_arch = "wasm32"),
         not(debug_assertions)
     ))
 }
 
-
-
 // ========== Runtime Allocator Selection ==========
 
-// Global state for allocator selection and logging  
+// Global state for allocator selection and logging
 // ID mapping: 0=uninitialized, 1=system, 2=mimalloc, 3=jemalloc, 4=embedded, 5=mimalloc-secure
 static RUNTIME_ALLOCATOR_ID: AtomicU8 = AtomicU8::new(0);
 #[cfg(not(target_os = "none"))]
@@ -446,7 +466,11 @@ const fn get_compile_time_allocator() -> Option<u8> {
         return Some(1); // libmalloc
     }
 
-    if cfg!(any(target_os = "freebsd", target_os = "netbsd", target_os = "openbsd")) {
+    if cfg!(any(
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    )) {
         return Some(1); // native jemalloc/security-hardened
     }
 
@@ -495,7 +519,7 @@ fn get_cpu_cores_safe() -> usize {
             }
         }
     }
-    
+
     #[cfg(windows)]
     {
         // Windows: Use direct WinAPI to avoid std allocation
@@ -506,7 +530,7 @@ fn get_cpu_cores_safe() -> usize {
             sysinfo.dwNumberOfProcessors as usize
         }
     }
-    
+
     #[cfg(not(any(unix, windows)))]
     {
         // Fallback: assume multi-core for unknown platforms
@@ -548,7 +572,7 @@ mod embedded_heap_config {
     // Default heap size for other embedded architectures (LoongArch, Hexagon, BPF, SPARC, etc.)
     #[cfg(not(any(
         target_arch = "avr",
-        target_arch = "msp430", 
+        target_arch = "msp430",
         target_arch = "riscv32",
         target_arch = "riscv64",
         target_arch = "xtensa",
@@ -563,22 +587,22 @@ mod embedded_heap_config {
     // Singleton heap instance - different implementations for std vs no_std
     #[cfg(not(target_os = "none"))]
     pub static EMBEDDED_HEAP: Lazy<Heap> = Lazy::new(|| unsafe { Heap::new(&mut HEAP_MEMORY[..]) });
-    
+
     #[cfg(target_os = "none")]
     static mut EMBEDDED_HEAP_INSTANCE: Option<Heap> = None;
-    
+
     /// Gets the embedded heap instance for no_std environments
-    /// 
-    /// This function provides access to the global embedded heap used in no_std 
-    /// environments. The heap is lazily initialized on first access with 
+    ///
+    /// This function provides access to the global embedded heap used in no_std
+    /// environments. The heap is lazily initialized on first access with
     /// architecture-appropriate size defaults.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A reference to the static embedded heap instance
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// This function is only available in no_std environments (`target_os = "none"`).
     /// The heap initialization is done safely using static guarantees.
     #[cfg(target_os = "none")]
@@ -641,42 +665,57 @@ impl RuntimeAllocator {
         match allocator_id {
             5 => {
                 let system_info = collect_system_info();
-                ("mimalloc-secure", format!(
-                    "security-hardened choice - runtime detected ({} cores, {} total RAM)",
-                    system_info.cpu_cores,
-                    format_memory_size(system_info.total_memory_bytes)
-                ))
-            },
+                (
+                    "mimalloc-secure",
+                    format!(
+                        "security-hardened choice - runtime detected ({} cores, {} total RAM)",
+                        system_info.cpu_cores,
+                        format_memory_size(system_info.total_memory_bytes)
+                    ),
+                )
+            }
             2 => {
                 let system_info = collect_system_info();
-                ("mimalloc", format!(
-                    "optimal performance choice - runtime detected ({} cores, {} total RAM)",
-                    system_info.cpu_cores,
-                    format_memory_size(system_info.total_memory_bytes)
-                ))
-            },
+                (
+                    "mimalloc",
+                    format!(
+                        "optimal performance choice - runtime detected ({} cores, {} total RAM)",
+                        system_info.cpu_cores,
+                        format_memory_size(system_info.total_memory_bytes)
+                    ),
+                )
+            }
             4 => {
                 let system_info = collect_system_info();
-                ("embedded-alloc", format!(
-                    "embedded platform - compile-time selected ({} total RAM)",
-                    format_memory_size(system_info.total_memory_bytes)
-                ))
-            },
+                (
+                    "embedded-alloc",
+                    format!(
+                        "embedded platform - compile-time selected ({} total RAM)",
+                        format_memory_size(system_info.total_memory_bytes)
+                    ),
+                )
+            }
             _ => {
                 // System allocator - determine reason based on compile-time platform detection
                 if cfg!(debug_assertions) {
                     let system_info = collect_system_info();
-                    ("system", format!(
-                        "debug build - compile-time selected ({} cores, {} total RAM)",
-                        system_info.cpu_cores,
-                        format_memory_size(system_info.total_memory_bytes)
-                    ))
+                    (
+                        "system",
+                        format!(
+                            "debug build - compile-time selected ({} cores, {} total RAM)",
+                            system_info.cpu_cores,
+                            format_memory_size(system_info.total_memory_bytes)
+                        ),
+                    )
                 } else if cfg!(target_arch = "wasm32") {
                     let system_info = collect_system_info();
-                    ("system", format!(
-                        "WASM environment - compile-time selected ({} total RAM)",
-                        format_memory_size(system_info.total_memory_bytes)
-                    ))
+                    (
+                        "system",
+                        format!(
+                            "WASM environment - compile-time selected ({} total RAM)",
+                            format_memory_size(system_info.total_memory_bytes)
+                        ),
+                    )
                 } else if cfg!(target_os = "android") {
                     let system_info = collect_system_info();
                     ("system", format!(
@@ -721,7 +760,7 @@ impl RuntimeAllocator {
                         format_memory_size(system_info.total_memory_bytes)
                     ))
                 }
-            },
+            }
         }
     }
 }
@@ -743,7 +782,6 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         match Self::get_allocator_id() {
-
             // mimalloc-secure - security-hardened allocator with 10% performance overhead
             #[cfg(all(
                 feature = "_mimalloc_secure",
@@ -751,12 +789,7 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
                 not(debug_assertions),
                 not(target_os = "none")
             ))]
-            5 => {
-                //mimalloc_rust::GlobalMiMalloc.alloc(layout)
-                use mimalloc::MiMalloc;
-                MiMalloc.alloc(layout)
-
-            }
+            5 => AutoMalloc.alloc(layout),
 
             // mimalloc - high-performance allocator with compiler compatibility detection
             #[cfg(all(
@@ -765,18 +798,10 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
                 not(debug_assertions),
                 not(target_os = "none")
             ))]
-            2 => {
-                //mimalloc_rust::GlobalMiMalloc.alloc(layout)
-                use mimalloc::MiMalloc;
-                MiMalloc.alloc(layout)
-
-            }
+            2 => AutoMalloc.alloc(layout),
 
             // embedded-alloc - for all no_std embedded platforms
-            #[cfg(all(
-                feature = "_embedded",
-                target_os = "none"
-            ))]
+            #[cfg(all(feature = "_embedded", target_os = "none"))]
             4 => {
                 // Use embedded-alloc for all no_std targets
                 #[cfg(not(target_os = "none"))]
@@ -792,7 +817,7 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
             // System allocator - default fallback
             #[cfg(not(target_os = "none"))]
             _ => alloc::System.alloc(layout),
-            
+
             #[cfg(target_os = "none")]
             _ => core::ptr::null_mut(),
         }
@@ -801,7 +826,6 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
     #[inline]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         match Self::get_allocator_id() {
-
             // mimalloc-secure - security-hardened allocator
             #[cfg(all(
                 feature = "_mimalloc_secure",
@@ -809,11 +833,7 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
                 not(debug_assertions),
                 not(target_os = "none")
             ))]
-            5 => {
-                //mimalloc_rust::GlobalMiMalloc.dealloc(ptr, layout)
-                use mimalloc::MiMalloc;
-                MiMalloc.dealloc(ptr, layout)
-            }
+            5 => AutoMalloc.dealloc(ptr, layout),
 
             // mimalloc - high-performance allocator with compiler compatibility detection
             #[cfg(all(
@@ -822,16 +842,9 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
                 not(debug_assertions),
                 not(target_os = "none")
             ))]
-            2 => {
-                //mimalloc_rust::GlobalMiMalloc.dealloc(ptr, layout)
-                use mimalloc::MiMalloc;
-                MiMalloc.dealloc(ptr, layout)
-            }
+            2 => AutoMalloc.dealloc(ptr, layout),
 
-            #[cfg(all(
-                feature = "_embedded",
-                target_os = "none"
-            ))]
+            #[cfg(all(feature = "_embedded", target_os = "none"))]
             4 => {
                 // Use embedded-alloc for all no_std targets
                 #[cfg(not(target_os = "none"))]
@@ -846,9 +859,9 @@ unsafe impl GlobalAlloc for RuntimeAllocator {
 
             #[cfg(not(target_os = "none"))]
             _ => alloc::System.dealloc(ptr, layout),
-            
+
             #[cfg(target_os = "none")]
-            _ => {},
+            _ => {}
         }
     }
 }
@@ -864,15 +877,17 @@ static PENDING_LOG_MESSAGE: Lazy<std::sync::Mutex<Option<String>>> =
 
 /// Records allocator selection using a dual logging strategy
 ///
-/// Immediately outputs to stderr (safe during global allocator init) and 
+/// Immediately outputs to stderr (safe during global allocator init) and
 /// saves for later output through the logging framework when available.
 #[cfg(not(target_os = "none"))]
-fn record_allocator_selection(allocator_name: &str, reason: &str) {
-    let message = format!("Auto-allocator: {} selected - {}", allocator_name, reason);
+fn record_allocator_selection(_allocator_name: &str, _reason: &str) {
+    #[cfg(not(feature = "_no_info"))]
+    let message = format!("Auto-allocator: {} selected - {}", _allocator_name, _reason);
 
     // Immediate output to stderr (only safe method in global allocator)
     #[cfg(unix)]
     {
+        #[cfg(not(feature = "_no_info"))]
         let stderr_message = format!("[INFO] {}\n", message);
         #[cfg(not(feature = "_no_info"))]
         unsafe {
@@ -950,26 +965,40 @@ fn collect_system_info() -> SystemInfo {
         is_wasm: false,
         target_arch: {
             #[cfg(target_arch = "riscv32")]
-            { "riscv32" }
+            {
+                "riscv32"
+            }
             #[cfg(target_arch = "riscv64")]
-            { "riscv64" }
+            {
+                "riscv64"
+            }
             #[cfg(target_arch = "arm")]
-            { "arm" }
+            {
+                "arm"
+            }
             #[cfg(target_arch = "avr")]
-            { "avr" }
+            {
+                "avr"
+            }
             #[cfg(target_arch = "msp430")]
-            { "msp430" }
+            {
+                "msp430"
+            }
             #[cfg(target_arch = "xtensa")]
-            { "xtensa" }
+            {
+                "xtensa"
+            }
             #[cfg(not(any(
                 target_arch = "riscv32",
-                target_arch = "riscv64", 
+                target_arch = "riscv64",
                 target_arch = "arm",
                 target_arch = "avr",
                 target_arch = "msp430",
                 target_arch = "xtensa"
             )))]
-            { "unknown" }
+            {
+                "unknown"
+            }
         },
     }
 }
@@ -1128,12 +1157,12 @@ static ALLOCATOR_INFO: Lazy<AllocatorInfo> = Lazy::new(|| {
         4 => {
             // For embedded allocator, preserve the original compile-time selection info
             reason
-        },
+        }
         _ => {
             // For system allocator, preserve the original detailed reason as-is
             // (already includes correct "compile-time selected" or platform-specific info)
             reason
-        },
+        }
     };
 
     AllocatorInfo {
@@ -1252,7 +1281,10 @@ fn get_allocator_selection_result(system_info: &SystemInfo) -> (AllocatorType, S
     if system_info.is_wasm {
         (
             AllocatorType::System,
-            format!("system allocator - WASM environment ({} total RAM)", total_mem),
+            format!(
+                "system allocator - WASM environment ({} total RAM)",
+                total_mem
+            ),
         )
     } else if system_info.is_debug {
         (
@@ -1265,7 +1297,10 @@ fn get_allocator_selection_result(system_info: &SystemInfo) -> (AllocatorType, S
     } else if is_embedded_target() {
         (
             AllocatorType::EmbeddedHeap,
-            format!("embedded-alloc allocator - embedded environment ({} total RAM)", total_mem),
+            format!(
+                "embedded-alloc allocator - embedded environment ({} total RAM)",
+                total_mem
+            ),
         )
     } else if system_info.os_type == "android" {
         (
@@ -1329,7 +1364,10 @@ fn get_allocator_selection_result(system_info: &SystemInfo) -> (AllocatorType, S
 /// Simplified allocator selection for no_std environments
 #[cfg(target_os = "none")]
 fn get_allocator_selection_result(_system_info: &SystemInfo) -> (AllocatorType, &'static str) {
-    (AllocatorType::EmbeddedHeap, "embedded-alloc selected for no_std environment")
+    (
+        AllocatorType::EmbeddedHeap,
+        "embedded-alloc selected for no_std environment",
+    )
 }
 
 /// Get recommended allocator for current runtime environment
@@ -1479,4 +1517,3 @@ use wasm_bindgen::prelude::*;
 pub fn wasm_auto_init() {
     ensure_allocator_info_ready();
 }
-
