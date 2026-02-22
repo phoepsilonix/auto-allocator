@@ -34,13 +34,14 @@ fn test_platform_specific_allocator_selection() {
         assert!(info.reason.contains("Debug") || info.reason.contains("debug"));
     }
 
-    #[cfg(all(not(debug_assertions), not(target_arch = "wasm32"), target_os = "none"))]
+    #[cfg(all(
+        not(debug_assertions),
+        not(target_arch = "wasm32"),
+        target_os = "none"
+    ))]
     {
         // Embedded targets should use embedded allocator
-        assert_eq!(
-            info.allocator_type,
-            auto_allocator::AllocatorType::EmbeddedHeap
-        );
+        assert_eq!(info.allocator_type, auto_allocator::AllocatorType::EmbeddedHeap);
         assert!(info.reason.contains("embedded") || info.reason.contains("Embedded"));
     }
 
@@ -70,11 +71,7 @@ fn test_platform_specific_allocator_selection() {
     {
         // Modern platforms in release mode should use mimalloc for optimal performance
         assert_eq!(info.allocator_type, auto_allocator::AllocatorType::Mimalloc);
-        assert!(
-            info.reason.contains("performance")
-                || info.reason.contains("optimal")
-                || info.reason.contains("mimalloc")
-        );
+        assert!(info.reason.contains("performance") || info.reason.contains("optimal") || info.reason.contains("mimalloc"));
     }
 }
 
@@ -165,7 +162,7 @@ fn test_allocator_optimization_check() {
         not(target_arch = "wasm32"),
         any(
             target_os = "windows",
-            target_os = "macos",
+            target_os = "macos", 
             all(target_os = "linux", target_env = "gnu")
         ),
         not(target_os = "none")

@@ -32,7 +32,7 @@ fn main() {
     println!("- WASM/Mobile platforms: system allocator for compatibility");
     println!("- Embedded systems: specialized embedded allocator");
     println!();
-
+    
     println!("🏆 Based on Microsoft and independent performance research:");
     println!("  • mimalloc provides superior multi-threaded performance");
     println!("  • Up to 1.6x faster than system allocators in complex workloads");
