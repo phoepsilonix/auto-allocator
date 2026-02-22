@@ -867,12 +867,14 @@ static PENDING_LOG_MESSAGE: Lazy<std::sync::Mutex<Option<String>>> =
 /// Immediately outputs to stderr (safe during global allocator init) and 
 /// saves for later output through the logging framework when available.
 #[cfg(not(target_os = "none"))]
-fn record_allocator_selection(allocator_name: &str, reason: &str) {
-    let message = format!("Auto-allocator: {} selected - {}", allocator_name, reason);
+fn record_allocator_selection(_allocator_name: &str, _reason: &str) {
+    #[cfg(not(feature = "_no_info"))]
+    let message = format!("Auto-allocator: {} selected - {}", _allocator_name, _reason);
 
     // Immediate output to stderr (only safe method in global allocator)
     #[cfg(unix)]
     {
+        #[cfg(not(feature = "_no_info"))]
         let stderr_message = format!("[INFO] {}\n", message);
         #[cfg(not(feature = "_no_info"))]
         unsafe {
